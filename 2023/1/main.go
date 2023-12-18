@@ -44,7 +44,6 @@ func checkNumber(input string) (int, error) {
 	for i := 1; i <= len(input)+1; i++ {
 		for k, v := range res {
 			if k == input[:i-1] {
-				// fmt.Println("aa", k, v, input[:i-1])
 				return v, nil
 			}
 
