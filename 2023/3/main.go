@@ -10,41 +10,96 @@ import (
 
 // struct to hold position of the special characters
 type positionCharStruct struct {
-	i int
-	j int
+	i                   int
+	j                   int
+	partNumbersQuantity int
+	partNumbers         []int
+}
+
+// struct to hold resultNumbers and their positions (since the same number can be multiple places)
+type resultNumbersStruct struct {
+	number   int
+	line     int
+	posBegin int
+	posEnd   int
 }
 
 var DEBUG, PARTONE, PARTTWO bool
 
-func printGrid(grid [][]string) {
+func printGrid(grid [][]rune) {
 	fmt.Printf("\n")
-	for _, g := range grid {
-		fmt.Println(g)
+	for _, line := range grid {
+		for _, l := range line {
+			fmt.Printf("%c", l)
+		}
+		fmt.Printf("\n")
 	}
 	fmt.Printf("\n")
 }
 
-func lookAroundPosition(grid [][]string, p positionCharStruct) map[int]bool {
-	ret := make(map[int]bool)
+func looksForNumber(grid [][]rune, p positionCharStruct) resultNumbersStruct {
+	// loop to find beginning of number
+	// fmt.Printf("##### %+v %c\n", p, grid[p.i][p.j])
+	indexBegin := 0
+	indexEnd := 0
+	number := ""
+
+	for j := p.j; j >= 0; j-- {
+		// fmt.Printf("@@@ %d %c\n", j, grid[p.i][j])
+		if !unicode.IsDigit(grid[p.i][j]) {
+			indexBegin = j + 1
+			break
+		}
+	}
+
+	// fmt.Println("index:", index)
+	// loop to find end of number
+	for j := indexBegin; j <= len(grid[p.i])-1; j++ {
+		// fmt.Printf(">>> %d %c\n", j, grid[p.i][j])
+		if !unicode.IsDigit(grid[p.i][j]) {
+			indexEnd = j - 1
+			break
+		}
+		number += string(grid[p.i][j])
+	}
+
+	// fmt.Println("found Number:", number)
+	value, err := strconv.Atoi(number)
+
+	if err != nil {
+		fmt.Printf("Error converting %s to integer:", number)
+		return resultNumbersStruct{number: -1, line: -1, posBegin: -1, posEnd: -1}
+	}
+
+	return resultNumbersStruct{number: value, line: p.i, posBegin: indexBegin, posEnd: indexEnd}
+}
+
+func lookAroundPosition(grid [][]rune, p positionCharStruct) []resultNumbersStruct {
+	// fmt.Printf("@@@@@ %+v %c\n", p, grid[p.i][p.j])
+	ret := []resultNumbersStruct{}
 
 	relativePositions := []positionCharStruct{
-		{p.i - 1, p.j},     // Top
-		{p.i + 1, p.j},     // Bottom
-		{p.i, p.j - 1},     // Left
-		{p.i, p.j + 1},     // Right
-		{p.i - 1, p.j - 1}, // Diagonal top-left
-		{p.i - 1, p.j + 1}, // Diagonal top-right
-		{p.i + 1, p.j - 1}, // Diagonal bottom-left
-		{p.i + 1, p.j + 1}, // Diagonal bottom-right
+		{p.i - 1, p.j, 0, []int{}},     // Top
+		{p.i + 1, p.j, 0, []int{}},     // Bottom
+		{p.i, p.j - 1, 0, []int{}},     // Left
+		{p.i, p.j + 1, 0, []int{}},     // Right
+		{p.i - 1, p.j - 1, 0, []int{}}, // Diagonal top-left
+		{p.i - 1, p.j + 1, 0, []int{}}, // Diagonal top-right
+		{p.i + 1, p.j - 1, 0, []int{}}, // Diagonal bottom-left
+		{p.i + 1, p.j + 1, 0, []int{}}, // Diagonal bottom-right
 	}
 
 	for _, pos := range relativePositions {
 		// guarantees that stays within the grid
-		if pos.i < len(grid) && pos.j < len(grid[pos.i]) {
-			value, err := strconv.Atoi(grid[pos.i][pos.j])
+		if pos.i >= 0 && pos.j >= 0 {
+			// fmt.Printf("i: %d pos:%+v -> %c\n", i, pos, grid[pos.i][pos.j])
+			if pos.i < len(grid) && pos.j < len(grid[pos.i]) {
+				if unicode.IsDigit(grid[pos.i][pos.j]) {
+					resNumber := looksForNumber(grid, pos)
+					ret = append(ret, resNumber)
+					// fmt.Printf("number:%d i:%d character:%c\n", number, i, grid[p.i][p.j])
+				}
 
-			if err == nil {
-				ret[value] = true
 			}
 		}
 	}
@@ -52,21 +107,20 @@ func lookAroundPosition(grid [][]string, p positionCharStruct) map[int]bool {
 	return ret
 }
 
+func contains(numberList []resultNumbersStruct, newNumber resultNumbersStruct) bool {
+	for _, list := range numberList {
+		if list.number == newNumber.number && list.line == newNumber.line && list.posBegin == newNumber.posBegin && list.posEnd == newNumber.posEnd {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 
 	_, isPresent := os.LookupEnv("DEBUG")
 	if isPresent {
 		DEBUG = true
-	}
-
-	_, isPresent = os.LookupEnv("PARTONE")
-	if isPresent {
-		PARTONE = true
-	}
-
-	_, isPresent = os.LookupEnv("PARTTWO")
-	if isPresent {
-		PARTTWO = true
 	}
 
 	// open file for reading
@@ -78,11 +132,11 @@ func main() {
 	defer file.Close()
 
 	var res int
-	var checkingNumbers bool
-	grid := [][]string{}
+	grid := [][]rune{}
 
 	var positions []positionCharStruct
-	partNumbers := make(map[int]bool)
+	var partNumbers []resultNumbersStruct
+	// partNumbers := []int{}
 	lineNumber := 0
 
 	// reading lines and transforming in to list
@@ -90,51 +144,28 @@ func main() {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		row := []string{}
-		offset := 0
+		row := []rune{}
+		// offset := 0
 
 		if DEBUG {
 			fmt.Println(line)
 		}
 
-		digits := ""
-
+		// digits := ""
 		for charPosition, character := range line {
-			// fmt.Printf("@ %d %c\n", i, character)
+			// adding character (that's deep)
+			row = append(row, character)
 
-			if unicode.IsDigit(character) {
-				checkingNumbers = true
-				digits += string(character)
-
-				// since we need to group chars in one position, charPosition won't be the same as the column position on the grid
-			} else {
-				checkingNumbers = false
-			}
-
-			if !checkingNumbers {
-				// adding digits
-				if digits != "" {
-					offset += len(digits) - 1
-					row = append(row, digits)
-					digits = ""
-				}
-				// adding character (that's deep)
-				row = append(row, string(character))
-
-				if DEBUG {
-					fmt.Printf("%d %d %c\n", lineNumber, charPosition-offset, character)
-				}
-
-				if string(character) != "." {
-					position := positionCharStruct{i: lineNumber, j: charPosition - offset}
-					positions = append(positions, position)
-				}
-
+			if string(character) != "." && !unicode.IsDigit(character) {
+				position := positionCharStruct{i: lineNumber, j: charPosition, partNumbersQuantity: 0}
+				positions = append(positions, position)
 			}
 
 		}
+
 		grid = append(grid, row)
 		lineNumber++
+
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -142,26 +173,34 @@ func main() {
 		return
 	}
 
-	printGrid(grid)
-
-	for _, p := range positions {
-		if DEBUG {
-			fmt.Printf("%+v %s\n", p, grid[p.i][p.j])
-		}
+	for i, p := range positions {
+		// fmt.Printf("**** %+v %c\n", p, grid[p.i][p.j])
 
 		partNumbersRes := lookAroundPosition(grid, p)
+		for _, number := range partNumbersRes {
+			if !contains(partNumbers, number) {
+				partNumbers = append(partNumbers, number)
 
-		// I did not like this, there must be a better way to do it
-		for number, isPart := range partNumbersRes {
-			partNumbers[number] = isPart
+				positions[i].partNumbers = append(positions[i].partNumbers, number.number)
+				positions[i].partNumbersQuantity += 1
+
+			}
 		}
-		fmt.Printf("%+v %s\n", partNumbersRes, grid[p.i][p.j])
+
 	}
 
-	for key, _ := range partNumbers {
-		fmt.Println(key)
+	if DEBUG {
+		for _, p := range positions {
+			fmt.Printf("%c (%d, %d) has %+v partNumbers\n", grid[p.i][p.j], p.i, p.j, p.partNumbers)
+		}
 	}
 
-	fmt.Println("res", res)
+	for _, position := range positions {
+		if len(position.partNumbers) == 2 {
+			res += position.partNumbers[0] * position.partNumbers[1]
+		}
+	}
+
+	fmt.Println(res)
 
 }
