@@ -16,11 +16,6 @@ type data struct {
 	rangeStart       int
 }
 
-type values struct {
-	sourceValue      int
-	destinationValue int
-}
-
 func toNumber(slice []string) []int {
 	res := []int{}
 
@@ -63,20 +58,19 @@ func printAlmanac(almanac map[string][]data) {
 	}
 }
 
-func findMatch(valueStruct []values, sourceValue int) int {
-	for _, v := range valueStruct {
-		if v.sourceValue == sourceValue {
-			return v.destinationValue
+func findRange(almanac []data, sourceValue int) int {
+	for _, almanacData := range almanac {
+		sourceOffset := 0
+		for i := almanacData.sourceStart; i < almanacData.sourceStart+almanacData.rangeStart; i++ {
+			if sourceValue == i {
+				sourceOffset = i - almanacData.sourceStart
+				return almanacData.destinationStart + sourceOffset
+			}
 		}
-	}
 
+	}
 	return sourceValue
 }
-
-// I know this is O(n), but I can't control if the array is filled from 0 up
-// I could do a offset value and order each time I fill the array, but is just too much work
-// func contains(dataArray data, array []values, number int) bool {
-// }
 
 var DEBUG bool
 
@@ -100,16 +94,6 @@ func main() {
 	mapName := ""
 
 	almanac := map[string][]data{
-		"seed-to-soil":            {},
-		"soil-to-fertilizer":      {},
-		"fertilizer-to-water":     {},
-		"water-to-light":          {},
-		"light-to-temperature":    {},
-		"temperature-to-humidity": {},
-		"humidity-to-location":    {},
-	}
-
-	ranges := map[string][]values{
 		"seed-to-soil":            {},
 		"soil-to-fertilizer":      {},
 		"fertilizer-to-water":     {},
@@ -146,52 +130,23 @@ func main() {
 			} else {
 				// getting ranges
 				almanac[mapName] = append(almanac[mapName], lineToData(lines[0], mapName))
-				// fmt.Println("lineToData", lineToData(lines[0], mapName))
 
 			}
 		}
 
 	}
 
-	if DEBUG {
-		printAlmanac(almanac)
+	// printAlmanac(almanac)
+
+	almanacToCategory := map[int]string{
+		0: "seed-to-soil",
+		1: "soil-to-fertilizer",
+		2: "fertilizer-to-water",
+		3: "water-to-light",
+		4: "light-to-temperature",
+		5: "temperature-to-humidity",
+		6: "humidity-to-location",
 	}
-
-	for k := range almanac {
-		if DEBUG {
-			fmt.Println("### ", k, len(almanac[k]))
-		}
-
-		for i := 0; i < len(almanac[k]); i++ {
-
-			if DEBUG {
-				fmt.Println("line:", i+1)
-			}
-
-			for j := 0; j < almanac[k][i].rangeStart; j++ {
-				rangeAux := values{sourceValue: almanac[k][i].sourceStart + j, destinationValue: almanac[k][i].destinationStart + j}
-				ranges[k] = append(ranges[k], rangeAux)
-				// Assuming that there will never be an overlap between ranges of multiple lines
-				// if !contains(almanac[k][i], ranges[k], j) {
-				// 	ranges[k] = append(ranges[k], j)
-				// }
-
-				if DEBUG {
-					fmt.Println(j)
-				}
-
-			}
-
-		}
-
-	}
-
-	// for k, value := range ranges {
-	// 	// slices.Sort(v)
-	// 	for _, v := range value {
-	// 		fmt.Printf("%s: (%d, %d)\n", k, v.sourceValue, v.destinationValue)
-	// 	}
-	// }
 
 	res := map[string][]int{
 		"seed":        {},
@@ -204,39 +159,17 @@ func main() {
 		"location":    {},
 	}
 
-	rangeToRes := map[string]string{
-		"seed-to-soil":            "soil",
-		"soil-to-fertilizer":      "fertilizer",
-		"fertilizer-to-water":     "water",
-		"water-to-light":          "light",
-		"light-to-temperature":    "temperature",
-		"temperature-to-humidity": "humidity",
-		"humidity-to-location":    "location",
-	}
-
-	keyOrders := [7]string{"seed-to-soil",
-		"soil-to-fertilizer",
-		"fertilizer-to-water",
-		"water-to-light",
-		"light-to-temperature",
-		"temperature-to-humidity",
-		"humidity-to-location"}
-
-	resAux := 0
-
+	var sourceValue int
 	for _, seed := range seeds {
 		res["seed"] = append(res["seed"], seed)
 
-		resAux = seed
-		for k, _ := range keyOrders {
-			category := ranges[keyOrders[k]]
-			resAux = findMatch(category, resAux)
-			// fmt.Println(keyOrders[k], resAux)
-
-			res[rangeToRes[keyOrders[k]]] = append(res[rangeToRes[keyOrders[k]]], resAux)
-
+		sourceValue = seed
+		for i := 0; i < len(almanacToCategory); i++ {
+			destinationValue := findRange(almanac[almanacToCategory[i]], sourceValue)
+			// it's ugly I know
+			res[almanac[almanacToCategory[i]][0].destinationName] = append(res[almanac[almanacToCategory[i]][0].destinationName], destinationValue)
+			sourceValue = destinationValue
 		}
-
 	}
 
 	lowestLocation := res["location"][0]
@@ -246,6 +179,5 @@ func main() {
 		}
 		fmt.Printf("seed: %d, soil: %d, fertilizer: %d, water: %d, light: %d, temperature: %d, humidity: %d, location: %d\n", res["seed"][i], res["soil"][i], res["fertilizer"][i], res["water"][i], res["light"][i], res["temperature"][i], res["humidity"][i], res["location"][i])
 	}
-
 	fmt.Println(lowestLocation)
 }
